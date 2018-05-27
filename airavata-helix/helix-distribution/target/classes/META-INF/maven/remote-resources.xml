@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<remoteResourcesBundle xsi:schemaLocation="http://maven.apache.org/remote-resources/1.1.0 http://maven.apache.org/xsd/remote-resources-1.1.0.xsd"
+    xmlns="http://maven.apache.org/remote-resources/1.1.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <remoteResources>
+    <remoteResource>post-wm/bin/post-wm.sh</remoteResource>
+    <remoteResource>post-wm/bin/setenv.sh</remoteResource>
+    <remoteResource>post-wm/bin/post-wm-daemon.sh</remoteResource>
+    <remoteResource>post-wm/conf/logback.xml</remoteResource>
+    <remoteResource>post-wm/conf/airavata-server.properties</remoteResource>
+    <remoteResource>participant/bin/participant.sh</remoteResource>
+    <remoteResource>participant/bin/setenv.sh</remoteResource>
+    <remoteResource>participant/bin/participant-daemon.sh</remoteResource>
+    <remoteResource>participant/conf/logback.xml</remoteResource>
+    <remoteResource>participant/conf/cred_store.jks</remoteResource>
+    <remoteResource>participant/conf/airavata-server.properties</remoteResource>
+    <remoteResource>controller/bin/controller-daemon.sh</remoteResource>
+    <remoteResource>controller/bin/setenv.sh</remoteResource>
+    <remoteResource>controller/bin/controller.sh</remoteResource>
+    <remoteResource>controller/conf/logback.xml</remoteResource>
+    <remoteResource>controller/conf/airavata-server.properties</remoteResource>
+    <remoteResource>pre-wm/bin/setenv.sh</remoteResource>
+    <remoteResource>pre-wm/bin/pre-wm.sh</remoteResource>
+    <remoteResource>pre-wm/bin/pre-wm-daemon.sh</remoteResource>
+    <remoteResource>pre-wm/conf/logback.xml</remoteResource>
+    <remoteResource>pre-wm/conf/airavata-server.properties</remoteResource>
+  </remoteResources>
+  <sourceEncoding>UTF-8</sourceEncoding>
+</remoteResourcesBundle>

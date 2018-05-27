@@ -1,0 +1,5 @@
+org/apache/airavata/helix/task/api/support/AdaptorSupport.class
+org/apache/airavata/helix/task/api/TaskHelper.class
+org/apache/airavata/helix/task/api/annotation/TaskOutPort.class
+org/apache/airavata/helix/task/api/annotation/TaskParam.class
+org/apache/airavata/helix/task/api/annotation/TaskDef.class

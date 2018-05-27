@@ -1,0 +1,9 @@
+org/apache/airavata/helix/adaptor/wrapper/SFTPClientWrapper.class
+org/apache/airavata/helix/adaptor/SSHJAgentAdaptor.class
+org/apache/airavata/helix/adaptor/PoolingSSHJClient$SSHClientInfo.class
+org/apache/airavata/helix/adaptor/wrapper/SessionWrapper.class
+org/apache/airavata/helix/adaptor/PoolingSSHJClient$1.class
+org/apache/airavata/helix/adaptor/SSHJAgentAdaptor$1.class
+org/apache/airavata/helix/adaptor/PoolingSSHJClient.class
+org/apache/airavata/helix/adaptor/wrapper/SCPFileTransferWrapper.class
+org/apache/airavata/helix/adaptor/SSHJStorageAdaptor.class
