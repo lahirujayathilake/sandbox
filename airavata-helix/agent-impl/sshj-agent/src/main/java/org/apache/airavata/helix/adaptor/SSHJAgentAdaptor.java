@@ -46,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class SSHJAgentAdaptor implements AgentAdaptor {
@@ -61,7 +62,7 @@ public class SSHJAgentAdaptor implements AgentAdaptor {
         sshjClient = new PoolingSSHJClient(defaultConfig, host, 22);
         sshjClient.addHostKeyVerifier((hostname, port, key) -> true);
 
-        sshjClient.setMaxSessionsForConnection(10);
+        sshjClient.setMaxSessionsForConnection(1);
 
         PasswordFinder passwordFinder = passphrase != null ? PasswordUtils.createOneOff(passphrase.toCharArray()) : null;
 
@@ -95,6 +96,15 @@ public class SSHJAgentAdaptor implements AgentAdaptor {
         sshjClient.auth(user, am);
     }
 
+    public void init(String user, String host, String publicKey, String privateKey, String passphrase) throws AgentException {
+        try {
+            createPoolingSSHJClient(user, host, publicKey, privateKey, passphrase);
+        } catch (IOException e) {
+            logger.error("Error while initializing sshj agent for user " + user + " host " + host + " for key starting with " + publicKey.substring(0,10), e);
+            throw new AgentException("Error while initializing sshj agent for user " + user + " host " + host + " for key starting with " + publicKey.substring(0,10), e);
+        }
+    }
+
     @Override
     public void init(String computeResource, String gatewayId, String userId, String token) throws AgentException {
         try {
@@ -118,13 +128,33 @@ public class SSHJAgentAdaptor implements AgentAdaptor {
     }
 
     @Override
+    public void destroy() {
+        try {
+            if (sshjClient != null) {
+                sshjClient.disconnect();
+                sshjClient.close();
+            }
+        } catch (IOException e) {
+            logger.warn("Failed to stop sshj client for host " + sshjClient.getHost() + " and user " +
+                    sshjClient.getUsername() + " due to : " + e.getMessage());
+            // ignore
+        }
+    }
+
+    @Override
     public CommandOutput executeCommand(String command, String workingDirectory) throws AgentException {
         try (Session session = sshjClient.startSessionWrapper()) {
+
             Session.Command exec = session.exec((workingDirectory != null ? "cd " + workingDirectory + "; " : "") + command);
             StandardOutReader standardOutReader = new StandardOutReader();
-            standardOutReader.readStdOutFromStream(exec.getInputStream());
-            standardOutReader.readStdErrFromStream(exec.getErrorStream());
-            standardOutReader.setExitCode(exec.getExitStatus());
+
+            try {
+                standardOutReader.readStdOutFromStream(exec.getInputStream());
+                standardOutReader.readStdErrFromStream(exec.getErrorStream());
+            } finally {
+                exec.close(); // closing the channel before getting the exit status
+                standardOutReader.setExitCode(Optional.ofNullable(exec.getExitStatus()).orElseThrow(() -> new Exception("Exit status received as null")));
+            }
             return standardOutReader;
         } catch (Exception e) {
             throw new AgentException(e);
@@ -133,8 +163,17 @@ public class SSHJAgentAdaptor implements AgentAdaptor {
 
     @Override
     public void createDirectory(String path) throws AgentException {
+        createDirectory(path, false);
+    }
+
+    @Override
+    public void createDirectory(String path, boolean recursive) throws AgentException {
         try (SFTPClient sftpClient = sshjClient.newSFTPClientWrapper()) {
-            sftpClient.mkdir(path);
+            if (recursive) {
+                sftpClient.mkdirs(path);
+            } else {
+                sftpClient.mkdir(path);
+            }
         } catch (Exception e) {
             throw new AgentException(e);
         }

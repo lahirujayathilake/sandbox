@@ -106,6 +106,11 @@ public class SshAgentAdaptor implements AgentAdaptor {
         }
     }
 
+    @Override
+    public void destroy() {
+
+    }
+
     public CommandOutput executeCommand(String command, String workingDirectory) throws AgentException {
         StandardOutReader commandOutput = new StandardOutReader();
         ChannelExec channelExec = null;
@@ -132,7 +137,12 @@ public class SshAgentAdaptor implements AgentAdaptor {
     }
 
     public void createDirectory(String path) throws AgentException {
-        String command = "mkdir -p " + path;
+        createDirectory(path, false);
+    }
+
+    @Override
+    public void createDirectory(String path, boolean recursive) throws AgentException {
+        String command = (recursive? "mkdir -p " : "mkdir ") + path;
         ChannelExec channelExec = null;
         try {
             channelExec = (ChannelExec)session.openChannel("exec");
