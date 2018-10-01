@@ -6,7 +6,8 @@ import java.util.Map;
 public class ParserDAGElement {
     private String parentParser; //returns the id
     private String childParser; // returns the id
-    private Map<String, String> outputInputMapping = new HashMap<>(); // assume that </usr/lahiruj/opensource.txt, airavata.txt> todo not the path in input just the file name
+    // input of the child parser output of the parent parser
+    private Map<String, String> inputOutputMapping = new HashMap<>(); // assume that </usr/lahiruj/opensource.txt, airavata.txt> todo not the path in input just the file name
     //parent output path is mapped to child's input path
     //todo why is this necessary because only need the names of the files (output files) which can be set as the inputs to
     // todo the child parser's inputs. In the docker command it is only required to put names then we can go with the necessary
@@ -37,11 +38,11 @@ public class ParserDAGElement {
         this.childParser = childParser;
     }
 
-    public Map<String, String> getOutputInputMapping() {
-        return outputInputMapping;
+    public Map<String, String> getInputOutputMapping() {
+        return inputOutputMapping;
     }
 
-    public void setOutputInputMapping(Map<String, String> outputInputMapping) {
-        this.outputInputMapping = outputInputMapping;
+    public void setInputOutputMapping(Map<String, String> inputOutputMapping) {
+        this.inputOutputMapping = inputOutputMapping;
     }
 }

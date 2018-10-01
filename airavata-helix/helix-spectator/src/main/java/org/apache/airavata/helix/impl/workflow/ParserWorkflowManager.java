@@ -24,9 +24,9 @@ import org.apache.airavata.common.utils.ServerSettings;
 import org.apache.airavata.helix.core.AbstractTask;
 import org.apache.airavata.helix.core.OutPort;
 import org.apache.airavata.helix.core.util.MonitoringUtil;
-import org.apache.airavata.helix.impl.task.parsing.ParserInfo;
 import org.apache.airavata.helix.impl.task.parsing.CatalogUtil;
 import org.apache.airavata.helix.impl.task.parsing.DataParsingTask;
+import org.apache.airavata.helix.impl.task.parsing.ParserInfo;
 import org.apache.airavata.model.appcatalog.appinterface.ApplicationInterfaceDescription;
 import org.apache.airavata.model.process.ProcessModel;
 import org.apache.airavata.monitor.JobStatusResult;
@@ -39,6 +39,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.*;
 
 /**
@@ -188,6 +190,17 @@ public class ParserWorkflowManager extends WorkflowManager {
             entries.add(e);
         }
         return entries;
+    }
+
+    private URI getStorageOutputURI(String parserId) {
+        try {
+            return new URI(File.separator + "parsers" + File.separator + parsingTemplateId + File.separator +
+                    parserId + "outputs" + File.separator);
+
+        } catch (URISyntaxException e) {
+            throw new Exception("Failed to extract the output path of parser: " + parserId +
+                    " in parsing template: " + parsingTemplateId, true, null);
+        }
     }
 
     public static void main(String[] args) throws Exception {

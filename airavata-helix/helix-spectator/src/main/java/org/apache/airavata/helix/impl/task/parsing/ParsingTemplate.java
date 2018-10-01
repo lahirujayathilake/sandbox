@@ -5,6 +5,7 @@ import java.util.List;
 public class ParsingTemplate {
     private String id;
     private String applicationInterface;
+    private String initialInputsPath;
     private List<ParserDAGElement> parserDag;
 
     public String getId() {
@@ -21,6 +22,14 @@ public class ParsingTemplate {
 
     public void setApplicationInterface(String applicationInterface) {
         this.applicationInterface = applicationInterface;
+    }
+
+    public String getInitialInputsPath() {
+        return initialInputsPath;
+    }
+
+    public void setInitialInputsPath(String initialInputsPath) {
+        this.initialInputsPath = initialInputsPath;
     }
 
     public List<ParserDAGElement> getParserDag() {
