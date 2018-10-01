@@ -42,10 +42,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 
 /**
- * Pick the input file named {@link ParserInfo#inputFileName}
- * from the {@link #localWorkingDir} directory and handover to
+ * Pick the input file named {@link ParserInfo#}
+ * from the {@link #} directory and handover to
  * the {@link ParserInfo#containerName} Docker container to
- * get the desired {@link ParserInfo#outputFileName} output file
+ * get the desired {@link ParserInfo#mandatoryOutputFiles} and
+ * {@link ParserInfo#optionalOutputFiles} output file
  *
  * @since 1.0.0-SNAPSHOT
  */
@@ -53,12 +54,19 @@ import java.net.URISyntaxException;
 public class DataParsingTask extends AbstractTask {
 
     private final static Logger logger = LoggerFactory.getLogger(DataParsingTask.class);
+    private String localWorkingDir;
 
     @TaskParam(name = "JSON String ParserInfo")
     private String jsonStrParserInfo;
 
     @TaskParam(name = "JSON String Parser DAG Element")
     private String jsonStrParserDagElement;
+
+    @TaskParam(name = "Parsing Template ID")
+    private String parsingTemplateId;
+
+    @TaskParam(name = "Storage Input File Path")
+    private String storageInputFilePath;
 
     @TaskParam(name = "Gateway ID")
     private String gatewayId;
@@ -81,31 +89,30 @@ public class DataParsingTask extends AbstractTask {
 
         try {
             // In this DAG element ChildParser is the current parser, only need parent parser's output to map child parser's input
-            ParserDAGElement dagElement = ParserUtil.getTFromJsonStr(jsonStrParserDagElement, ParserDAGElement.class);
-            ParserInfo parserInfo = ParserUtil.getTFromJsonStr(jsonStrParserInfo, ParserInfo.class);
-            String localWorkingDir = createLocalWorkingDir(parserInfo.getId());
+            ParserDAGElement dagElement = ParserUtil.getObjFromJSONStr(jsonStrParserDagElement, ParserDAGElement.class);
+            ParserInfo parserInfo = ParserUtil.getObjFromJSONStr(jsonStrParserInfo, ParserInfo.class);
+            localWorkingDir = createLocalWorkingDir(parserInfo.getId());
             // Fetch and validate storage adaptor
             StorageResourceAdaptor storageResourceAdaptor = getStorageAdaptor(helper.getAdaptorSupport());
 
             //todo only required the parent - child output mapping --> this task is the child
             // todo should download the files from the storage resource then go for the following condition
-
-            for (String sourceFile : dagElement.getOutputInputMapping().keySet()) {
+            for (String sourceFile : dagElement.getInputOutputMapping().keySet()) {
                 URI sourceURI = null;
                 try {
-                    sourceURI = new URI(sourceFile);
-                    logger.info("Downloading input file " + sourceURI.getPath() + " to the local path " + localSourceFilePath);
-                    storageResourceAdaptor.downloadFile(sourceURI.getPath(),
-                            getLocalDataPath(dagElement.getOutputInputMapping().get(sourceFile))); //todo getLocalDataPath from DataStagingTask
-                    logger.info("Input file downloaded to " + localSourceFilePath);
-                } catch (AgentException e) {
-                    throw new TaskOnFailException("Failed downloading input file " + sourceURI.getPath() + " to the local path " + localSourceFilePath, false, e);
+                    // Even for the first parser in the DAG there should be an input to output mapping
+                    sourceURI = new URI(storageInputFilePath + File.separator + dagElement.getInputOutputMapping().get(sourceFile));
+                    logger.info("Downloading input file " + sourceURI.getPath() + " to the local path " + localWorkingDir);
+                    storageResourceAdaptor.downloadFile(sourceURI.getPath(), localWorkingDir + File.separator + sourceFile);
+                    logger.info("Input file downloaded to " + localWorkingDir);
+
                 } catch (URISyntaxException e) {
                     throw new TaskOnFailException("Failed to obtain source URI for Data Parsing Task " + getTaskId(), true, e);
+
+                } catch (AgentException e) {
+                    throw new TaskOnFailException("Failed downloading input file " + sourceURI.getPath() + " to the local path " + localWorkingDir, false, e);
                 }
-
             }
-
 
             ContainerStatus containerStatus = ContainerStatus.REMOVED;
 
@@ -160,34 +167,51 @@ public class DataParsingTask extends AbstractTask {
                  *      "lahiruj/gaussian " +                                   // docker image name
                  *      "python " +                                             // programming language
                  *      "gaussian.py " +                                        // file to be executed
-                 *      "input-gaussian.json"                                   // input file
+                 *      "input-gaussian.json "                                   // input file
                  *      "output.json"                                           // output file path
                  *
                  */
-                String dockerCommand = "docker run " +
-                        "--name " + parserInfo.getContainerName() +
-                        " -t " +
-                        parserInfo.getAutomaticallyRmContainer() + " " +
-                        parserInfo.getRunInDetachedMode() + " " +
-                        parserInfo.getSecurityOpt() + " " +
-                        parserInfo.getLabel() + " " +
-                        parserInfo.getEnvVariables() + " " +
-                        parserInfo.getCpus() + " " +
-                        " -v " + localWorkingDir + ":" + parserInfo.getDockerWorkingDirPath() + " " +
-                        parserInfo.getDockerImageName() + " " +
-                        parserInfo.getExecutableBinary() + " " +
-                        parserInfo.getExecutingFile() + " " +
-                        parserInfo.getInputFileName() + " " +
-                        parserInfo.getOutputFileName();
-//todo in the new way should validate whether the input files are there and output files have been created if the
-                // todo number of outputs files have been created then upload to the storage resource --> should fail
-                // todo the task saying output files are not created
 
-                //todo no need to get a working directory create a java temp working directory and remove once the files
-                //todo are uploaded
-                // todo task should be finished once the files are uploaded to the storage resource and cleanup the
-                //todo local working directories files
-                Process proc = Runtime.getRuntime().exec(dockerCommand);
+//                String dockerCommand = "docker run " +
+//                        "--name " + parserInfo.getContainerName() +
+//                        " -t " +
+//                        parserInfo.getAutomaticallyRmContainer() + " " +
+//                        parserInfo.getRunInDetachedMode() + " " +
+//                        parserInfo.getSecurityOpt() + " " +
+//                        parserInfo.getLabel() + " " +
+//                        parserInfo.getEnvVariables() + " " +
+//                        parserInfo.getCpus() + " " +
+//                        " -v " + parserInputDir + ":" + parserInfo.getDockerWorkingDirPath() + " " +
+//                        parserInfo.getDockerImageName() + " " +
+//                        parserInfo.getExecutableBinary() + " " +
+//                        parserInfo.getExecutingFile() + " ";
+
+                StringBuilder dockerCommand = new StringBuilder("docker run --name ")
+                        .append(parserInfo.getContainerName())
+                        .append(" -t")
+                        .append(parserInfo.getAutomaticallyRmContainer()).append(" ")
+                        .append(parserInfo.getRunInDetachedMode()).append(" ")
+                        .append(parserInfo.getSecurityOpt()).append(" ")
+                        .append(parserInfo.getLabel()).append(" ")
+                        .append(parserInfo.getEnvVariables()).append(" ")
+                        .append(parserInfo.getCpus())
+                        .append(" -v ")
+                        .append(localWorkingDir)
+                        .append(":")
+                        .append(parserInfo.getDockerWorkingDirPath()).append(" ")
+                        .append(parserInfo.getDockerImageName()).append(" ")
+                        .append(parserInfo.getExecutableBinary()).append(" ")
+                        .append(parserInfo.getExecutingFile()).append(" ");
+
+                // Appending input files
+                parserInfo.getInputFiles().forEach(f -> dockerCommand.append(f).append(" "));
+
+                // Appending output file names FIXME I don't think this is necessary because now there is a mapping only the input files are needed
+                parserInfo.getMandatoryOutputFiles().forEach(f -> dockerCommand.append(f).append(" "));
+                parserInfo.getOptionalOutputFiles().forEach(f -> dockerCommand.append(f).append(" "));
+
+                // Run the docker command
+                Process proc = Runtime.getRuntime().exec(dockerCommand.toString().trim());
                 try (BufferedReader stdError = new BufferedReader(new InputStreamReader(proc.getErrorStream()))) {
                     String line;
                     StringBuilder error = new StringBuilder();
@@ -200,6 +224,44 @@ public class DataParsingTask extends AbstractTask {
                     if (error.length() > 0) {
                         logger.error("Error running Docker command " + error + " for task " + getTaskId());
                         throw new TaskOnFailException("Could not run Docker command successfully for task " + getTaskId(), true, null);
+                    }
+                }
+
+                String uploadPath = File.separator + "data-parsing" + File.separator + parsingTemplateId +
+                        File.separator + parserInfo.getId() + File.separator + "outputs" + File.separator;
+
+                // Validate whether the mandatory output files are created and upload them to storage resource
+                for (String mandatoryFile : parserInfo.getMandatoryOutputFiles()) {
+                    File f = new File(localWorkingDir + mandatoryFile);
+                    if (f.exists()) {
+                        // Uploading output file to the storage resource
+                        try {
+                            logger.info("Uploading the output file " + mandatoryFile + " to " + uploadPath + " from local path " + localWorkingDir);
+                            storageResourceAdaptor.uploadFile(localWorkingDir + mandatoryFile, uploadPath + mandatoryFile);
+                            logger.info("Output file successfully uploaded to " + uploadPath);
+
+                        } catch (AgentException e) {
+                            throw new TaskOnFailException("Failed uploading the output file to " + uploadPath + " from local path " + localWorkingDir, false, e);
+                        }
+
+                    } else {
+                        throw new TaskOnFailException("File: " + mandatoryFile + " has not been successfully created running the task " + getTaskId(), false, null);
+                    }
+                }
+
+                // Upload optional files
+                for (String optionalFile : parserInfo.getOptionalOutputFiles()) {
+                    File f = new File(localWorkingDir + optionalFile);
+                    if (f.exists()) {
+                        // Uploading the optional output file to the storage resource
+                        try {
+                            logger.info("Uploading the optional output file " + optionalFile + " to " + uploadPath + " from local path " + localWorkingDir);
+                            storageResourceAdaptor.uploadFile(localWorkingDir + optionalFile, uploadPath + optionalFile);
+                            logger.info("Optional output file successfully uploaded to " + uploadPath);
+
+                        } catch (AgentException e) {
+                            logger.warn("Failed uploading the output file to " + uploadPath + " from local path " + localWorkingDir);
+                        }
                     }
                 }
 
@@ -220,11 +282,13 @@ public class DataParsingTask extends AbstractTask {
 
             return onFail(e.getReason(), e.isCritical());
 
+        } catch (Exception e) {
+            logger.error("Unknown error while executing data parsing task " + getTaskId(), e);
+            return onFail("Unknown error while executing data parsing task " + getTaskId(), false);
+
+        } finally {
+            deleteLocalWorkingDir(localWorkingDir);
         }
-//        catch (Exception e) {
-//            logger.error("Unknown error while executing data parsing task " + getTaskId(), e);
-//            return onFail("Unknown error while executing data parsing task " + getTaskId(), false);
-//        }
     }
 
     @Override
@@ -232,16 +296,25 @@ public class DataParsingTask extends AbstractTask {
 
     }
 
-    private String createLocalWorkingDir(String parsingTemplateId) throws TaskOnFailException {
-        String localDataPath = ServerSettings.getLocalDataLocation();
-        localDataPath = (localDataPath.endsWith(File.separator) ? localDataPath : localDataPath + File.separator) +
-                parsingTemplateId + File.separator + "tmp_data" + File.separator;
+    private String createLocalWorkingDir(String parserId) throws TaskOnFailException {
+        String localDir = ServerSettings.getLocalDataLocation();
+        localDir = (localDir.endsWith(File.separator) ? localDir : localDir + File.separator) +
+                "parsers" + File.separator + parserId + File.separator + "data" + File.separator;
         try {
-            FileUtils.forceMkdir(new File(localDataPath));
+            FileUtils.forceMkdir(new File(localDir));
+            return localDir;
+
         } catch (IOException e) {
-            throw new TaskOnFailException("Failed build directories " + localDataPath, true, e);
+            throw new TaskOnFailException("Failed build directories " + localDir, true, e);
         }
-        return localDataPath;
+    }
+
+    private void deleteLocalWorkingDir(String directory) {
+        try {
+            FileUtils.deleteDirectory(new File(directory));
+        } catch (IOException e) {
+            logger.warn("Failed to delete the local working directory: " + directory);
+        }
     }
 
     private StorageResourceAdaptor getStorageAdaptor(AdaptorSupport adaptorSupport) throws TaskOnFailException {
@@ -249,7 +322,7 @@ public class DataParsingTask extends AbstractTask {
             StorageResourceAdaptor storageResourceAdaptor = adaptorSupport.fetchStorageAdaptor(
                     gatewayId,
                     storageResourceId,
-                    ParserUtil.getTFromJsonStr(dataMovementProtocol, DataMovementProtocol.class),
+                    ParserUtil.getObjFromJSONStr(dataMovementProtocol, DataMovementProtocol.class),
                     storageResourceCredToken,
                     storageResourceLoginUName);
 
@@ -263,14 +336,6 @@ public class DataParsingTask extends AbstractTask {
             throw new TaskOnFailException("Failed to obtain adaptor for storage resource " + storageResourceId +
                     " in task " + getTaskId(), true, e);
         }
-    }
-
-    public String getjsonStrParserInfo() {
-        return jsonStrParserInfo;
-    }
-
-    public void setjsonStrParserInfo(String jsonStrParserInfo) {
-        this.jsonStrParserInfo = jsonStrParserInfo;
     }
 
     private enum ContainerStatus {
