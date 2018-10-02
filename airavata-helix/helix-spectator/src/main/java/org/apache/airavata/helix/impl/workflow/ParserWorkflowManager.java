@@ -24,9 +24,7 @@ import org.apache.airavata.common.utils.ServerSettings;
 import org.apache.airavata.helix.core.AbstractTask;
 import org.apache.airavata.helix.core.OutPort;
 import org.apache.airavata.helix.core.util.MonitoringUtil;
-import org.apache.airavata.helix.impl.task.parsing.CatalogUtil;
-import org.apache.airavata.helix.impl.task.parsing.DataParsingTask;
-import org.apache.airavata.helix.impl.task.parsing.ParserInfo;
+import org.apache.airavata.helix.impl.task.parsing.*;
 import org.apache.airavata.model.appcatalog.appinterface.ApplicationInterfaceDescription;
 import org.apache.airavata.model.process.ProcessModel;
 import org.apache.airavata.monitor.JobStatusResult;
@@ -76,13 +74,52 @@ public class ParserWorkflowManager extends WorkflowManager {
                 try {
                     processModel = registryClient.getProcess(processId);
                     appDescription = registryClient.getApplicationInterface(processModel.getApplicationInterfaceId());
-                    getRegistryClientPool().returnResource(registryClient);
 
                 } catch (Exception e) {
                     logger.error("Failed to fetch process or application description from registry associated with process id " + processId, e);
-                    getRegistryClientPool().returnResource(registryClient);
                     throw new Exception("Failed to fetch process or application description from registry associated with process id " + processId, e);
+
+                } finally {
+                    getRegistryClientPool().returnResource(registryClient);
                 }
+
+                // All the templates should be run
+                // FIXME is it ApplicationInterfaceId or ApplicationName
+                Set<ParsingTemplate> parsingTemplates = ParserCatalog.getParserTemplatesForApplication(appDescription.getApplicationInterfaceId());
+
+                for (ParsingTemplate template : parsingTemplates) {
+                    List<AbstractTask> allTasks = new ArrayList<>();
+                    ParserInfo parentParser = null;
+
+                    for (ParserDAGElement dagElement : template.getParserDag()) {
+                        ParserInfo childParser = ParserCatalog.getParserById(dagElement.getChildParser());
+
+                        DataParsingTask task = new DataParsingTask();
+                        task.setTaskId("DATA-PARSING-TASK-" + childParser.getId().replaceAll("[^a-zA-Z0-9_.-]", "-"));
+                        task.setJsonStrParserInfo(ParserUtil.getStrFromObj(childParser));
+                        task.setJsonStrParserDagElement(ParserUtil.getStrFromObj(dagElement));
+                        task.setParsingTemplateId(template.getId());
+                        task.setGatewayId("");
+                        task.setStorageResourceId("");
+                        task.setDataMovementProtocol("");
+                        task.setStorageResourceCredToken("");
+                        task.setStorageResourceLoginUName("");
+                        task.setStorageInputFilePath(parentParser != null
+                                ? ParserUtil.getStorageUploadPath(template.getId(), parentParser.getId())
+                                : template.getInitialInputsPath());
+
+                        if (allTasks.size() > 0) {
+                            allTasks.get(allTasks.size() - 1).setNextTask(new OutPort(task.getTaskId(), task));
+                        }
+                        allTasks.add(task);
+                        logger.info("Successfully added the data parsing task: " + task.getTaskId() +
+                                " to the task DAG of the parsing template: " + template.getId());
+
+                        parentParser = childParser;
+                    }
+
+                }
+
                 //todo parser template --> dag -- > parser info --> dag
                 DAGCatalogEntry dagCatalogEntry = CatalogUtil.dagCatalogLookup(ServerSettings.getSetting("parser.dag.catalog.path"))
                         .stream()
@@ -90,41 +127,6 @@ public class ParserWorkflowManager extends WorkflowManager {
                         .findFirst()
                         .orElseThrow(() -> new Exception("Can not find the DAG catalog entry for the experiment: " + experimentId));
 
-                File inputFile = new File(dagCatalogEntry.getLocalWorkingDir().endsWith(File.separator)
-                        ? dagCatalogEntry.getLocalWorkingDir() + dagCatalogEntry.getInputFileName()
-                        : dagCatalogEntry.getLocalWorkingDir() + File.separator + dagCatalogEntry.getInputFileName());
-
-                if (!inputFile.exists()) {
-                    logger.error("Input file: " + inputFile.getName() + " does not exists");
-                    return false;
-                }
-
-                final List<AbstractTask> allTasks = new ArrayList<>();
-                List<ParserInfo> catalogEntries = fetchEntries(dagCatalogEntry);
-
-                // Set the input file name into the first ParserInfo
-                catalogEntries.get(0).setInputFileName(dagCatalogEntry.getInputFileName());
-                // Set the output file name into the last ParserInfo
-                catalogEntries.get(catalogEntries.size() - 1).setOutputFileName(dagCatalogEntry.getOutputFileName());
-
-                for (int i = 0; i < catalogEntries.size(); i++) {
-                    ParserInfo entry = catalogEntries.get(i);
-                    if (i > 0) {
-                        // Set the input file name as the previous catalog entry output file name
-                        entry.setInputFileName(catalogEntries.get(i - 1).getOutputFileName());
-                    }
-
-                    DataParsingTask task = new DataParsingTask();
-                    task.setJsonStrCatalogEntry(CatalogUtil.catalogEntryToJSONString(entry));
-                    task.setLocalWorkingDir(dagCatalogEntry.getLocalWorkingDir());
-                    task.setTaskId("ID-" + entry.getDockerImageName().replaceAll("[^a-zA-Z0-9_.-]", "-"));
-
-                    if (allTasks.size() > 0) {
-                        allTasks.get(allTasks.size() - 1).setNextTask(new OutPort(task.getTaskId(), task));
-                    }
-                    allTasks.add(task);
-                    logger.info("Successfully added the data parsing task: " + task.getTaskId() + " to the task DAG");
-                }
 
                 String workflowName = getWorkflowOperator()
                         .launchWorkflow(processId + "-DataParsing-" + UUID.randomUUID().toString(),

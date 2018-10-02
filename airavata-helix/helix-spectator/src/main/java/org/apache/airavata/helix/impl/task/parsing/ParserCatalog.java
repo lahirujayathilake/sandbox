@@ -12,8 +12,7 @@ public class ParserCatalog {
     }
 
     public static Set<ParsingTemplate> getParserTemplatesForApplication(String appIfaceId) throws Exception {
-        // there may be many DAGs for one application interface
-        //todo which one to load
+        // all the templates should be run
         return CatalogUtil.dagCatalogLookup(appIfaceId);
     }
 
